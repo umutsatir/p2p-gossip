@@ -19,9 +19,10 @@ interface Peer {
 }
 
 class NodeServer {
-    public node: Node;
-    public server: net.Server;
-    public port: number;
+    private node: Node;
+    private server: net.Server;
+    private port: number;
+    private messageCache: Set<string> = new Set();
 
     constructor(newPort: number, newPeerList: Array<Peer>) {
         this.port = newPort;
@@ -79,12 +80,10 @@ class NodeServer {
             timestamp: Date.now(),
         };
 
-        if (!to.socket) {
-            const socket = this.connectToPeer(to.ip, to.port);
-            to.socket = socket;
-        }
+        // add message into cache first, then broadcast
+        this.messageCache.add(newMessage.id);
 
-        to.socket.write(JSON.stringify(newMessage) + "\n");
+        this.broadcast(newMessage);
     }
 
     private connectToPeer(ip: string, port: number): net.Socket {
@@ -145,6 +144,14 @@ class NodeServer {
                     this.setupSocketEvents(socket, newPeer);
 
                     // handling peer list
+                    if (
+                        !parsedMessage.payload ||
+                        !Array.isArray(parsedMessage.payload.peers)
+                    ) {
+                        console.log("Invalid payload in HELLO message.");
+                        return;
+                    }
+
                     const peers: Array<Peer> = parsedMessage.payload.peers;
                     peers.forEach((peer: Peer) => {
                         const socket = this.connectToPeer(peer.ip, peer.port);
@@ -167,13 +174,45 @@ class NodeServer {
                     socket.write(JSON.stringify(helloMessage) + "\n");
                     break;
                 case "MESSAGE":
-                    return parsedMessage.payload;
+                    if (!this.messageCache.has(parsedMessage.id)) {
+                        this.messageCache.add(parsedMessage.id);
+
+                        console.log("New message:", parsedMessage.payload);
+
+                        const originPeer = this.node.peerList.find(
+                            (p) => p.socket === socket
+                        );
+                        // with broadcast function, we will gossip the received message to our peer list
+                        this.broadcast(parsedMessage, originPeer);
+                    }
+                    break;
                 default:
                     break;
             }
         } catch (error) {
             console.log("Message cannot be parsed: " + error);
         }
+    }
+
+    private broadcast(message: Message, originPeer?: Peer) {
+        // origin peer is the current peer (it shouldn't receive its own message)
+        this.node.peerList.forEach((peer) => {
+            if (
+                originPeer &&
+                peer.ip === originPeer.ip &&
+                peer.port === originPeer.port
+            ) {
+                return;
+            }
+
+            try {
+                peer.socket.write(JSON.stringify(message) + "\n");
+            } catch (err) {
+                console.error(
+                    `Broadcast error to ${peer.ip}:${peer.port} → ${err}`
+                );
+            }
+        });
     }
 
     private setupSocketEvents(socket: net.Socket, peer: Peer) {
