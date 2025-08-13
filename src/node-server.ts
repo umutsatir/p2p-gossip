@@ -21,15 +21,15 @@ interface Peer {
 class NodeServer {
     private node: Node;
     private server: net.Server;
-    private port: number;
     private messageCache: Set<string> = new Set();
 
-    constructor(newPort: number, newPeerList: Array<Peer>) {
-        this.port = newPort;
-        this.node = new Node(getLocalIPAddress(), newPeerList);
+    constructor(newPeerList: Array<Peer>, newPort: number) {
+        this.node = new Node(getLocalIPAddress(), newPort, newPeerList);
         this.server = this.createServer();
-        this.server.listen(this.port, () => {
-            console.log(`Server listening on ${this.node.ip}:${this.port}`);
+        this.server.listen(this.node.port, () => {
+            console.log(
+                `Server listening on ${this.node.ip}:${this.node.port}`
+            );
         });
 
         newPeerList.forEach((peer) => {
@@ -39,18 +39,6 @@ class NodeServer {
     }
 
     createServer() {
-        const message: Message = {
-            type: "HELLO",
-            id: getUUID(),
-            from: this.node.uid,
-            payload: {
-                ip: this.node.ip,
-                port: this.port,
-                peers: this.node.peerList,
-            },
-            timestamp: Date.now(),
-        };
-
         return net.createServer((c) => {
             let buffer = "";
             console.log("Node " + this.node.ip + " connected.");
@@ -60,16 +48,15 @@ class NodeServer {
             c.on("data", (chunk) => {
                 buffer += chunk.toString();
                 let lines = buffer.split("\n");
-                buffer = lines.pop()! || ""; // incomplete kısmı tekrar sakla
+                buffer = lines.pop()! || ""; // store the incompleted side of the buffer
                 lines.forEach((line) => {
                     this.parseMessage(line, c);
                 });
             });
-            c.write(JSON.stringify(message) + "\n");
         });
     }
 
-    sendMessage(message: string, to: Peer) {
+    sendMessage(message: string) {
         const newMessage: Message = {
             type: "MESSAGE",
             id: getUUID(),
@@ -96,7 +83,7 @@ class NodeServer {
                 from: this.node.uid,
                 payload: {
                     ip: this.node.ip,
-                    port: this.port,
+                    port: this.node.port,
                     peers: this.node.peerList,
                 },
                 timestamp: Date.now(),
@@ -110,6 +97,17 @@ class NodeServer {
             let lines = buffer.split("\n");
             buffer = lines.pop()! || "";
             lines.forEach((line) => this.parseMessage(line, socket));
+        });
+
+        socket.on("error", (err) => {
+            console.log(
+                "Error in connectToPeer, IP:",
+                ip,
+                ", Port:",
+                port,
+                ", Error:",
+                err
+            );
         });
 
         socket.on("end", () => {
@@ -136,8 +134,13 @@ class NodeServer {
                     // check is peer already added into the peer list
                     let isPeerAlreadyAdded = false;
                     this.node.peerList.forEach((peer) => {
-                        if (peer.ip == newPeer.ip && peer.port == newPeer.port)
+                        if (
+                            peer.ip == newPeer.ip &&
+                            peer.port == newPeer.port
+                        ) {
                             isPeerAlreadyAdded = true;
+                            peer.lastSeen = Date.now();
+                        }
                     });
                     if (!isPeerAlreadyAdded) this.node.peerList.push(newPeer);
 
@@ -154,9 +157,18 @@ class NodeServer {
 
                     const peers: Array<Peer> = parsedMessage.payload.peers;
                     peers.forEach((peer: Peer) => {
-                        const socket = this.connectToPeer(peer.ip, peer.port);
-                        peer.socket = socket;
-                        this.node.peerList.push(peer);
+                        if (
+                            peer.id != this.node.uid &&
+                            (peer.ip != this.node.ip ||
+                                peer.port != this.node.port)
+                        ) {
+                            const socket = this.connectToPeer(
+                                peer.ip,
+                                peer.port
+                            );
+                            peer.socket = socket;
+                            this.node.peerList.push(peer);
+                        }
                     });
 
                     // send message
@@ -166,7 +178,7 @@ class NodeServer {
                         from: this.node.uid,
                         payload: {
                             ip: this.node.ip,
-                            port: this.port,
+                            port: this.node.port,
                             peers: this.node.peerList,
                         },
                         timestamp: Date.now(),
@@ -216,6 +228,9 @@ class NodeServer {
     }
 
     private setupSocketEvents(socket: net.Socket, peer: Peer) {
+        if ((socket as any)._eventsBound) return; // disconnect if it's already connected
+        (socket as any)._eventsBound = true;
+
         socket.setKeepAlive(true);
 
         socket.on("error", (err) => {

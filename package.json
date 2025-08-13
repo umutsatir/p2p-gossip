@@ -1,9 +1,16 @@
 {
-  "devDependencies": {
-    "@types/node": "^24.2.0",
-    "typescript": "^5.9.2"
-  },
-  "dependencies": {
-    "uuid": "^11.1.0"
-  }
+    "devDependencies": {
+        "@types/node": "^24.2.0",
+        "typescript": "^5.9.2"
+    },
+    "dependencies": {
+        "uuid": "^11.1.0"
+    },
+    "scripts": {
+        "build": "npx tsc src/*",
+        "node": "node src/index.js",
+        "bootstrap": "node src/index.js 5100 bootstrap",
+        "clean": "rm src/*.js",
+        "all": "rm src/*.js && npx tsc src/* && node src/index.js 5100 bootstrap"
+    }
 }

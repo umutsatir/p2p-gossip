@@ -4,8 +4,8 @@ import { Peer } from "./node-server";
 class Node extends Bootstrap {
     public peerList: Array<Peer>;
 
-    constructor(newIP: string, newPeerList: Array<Peer>) {
-        super(newIP);
+    constructor(newIP: string, newPort: number, newPeerList: Array<Peer>) {
+        super(newIP, newPort);
         this.peerList = newPeerList;
     }
 }

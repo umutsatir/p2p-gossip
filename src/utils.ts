@@ -1,8 +1,14 @@
 import { v4 as uuidv4 } from "uuid";
-import os from "os";
+import * as crypto from "crypto";
+import * as os from "os";
 
 function getUUID() {
     return uuidv4();
+}
+
+function getPeerID(ip: string, port: number): string {
+    const data = `${ip}:${port}`;
+    return crypto.createHash("sha256").update(data).digest("hex");
 }
 
 function getLocalIPAddress(): string {
@@ -17,4 +23,4 @@ function getLocalIPAddress(): string {
     return "127.0.0.1";
 }
 
-export { getUUID, getLocalIPAddress };
+export { getUUID, getPeerID, getLocalIPAddress };
