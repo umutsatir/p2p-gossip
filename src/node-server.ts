@@ -41,9 +41,18 @@ class NodeServer {
     createServer() {
         return net.createServer((c) => {
             let buffer = "";
-            console.log("Node " + this.node.ip + " connected.");
+            // TODO: yanlisliklar var duzelt
+            let remoteAddress = c.remoteAddress || "unknown";
+            if (remoteAddress.startsWith("::ffff:"))
+                remoteAddress = remoteAddress.replace("::ffff:", "");
+            const remotePort = c.remotePort
+                ? c.remotePort.toString()
+                : "unknown";
+            console.log(`New node ${remoteAddress}:${remotePort} connected.`);
             c.on("end", () => {
-                console.log("Node " + this.node.ip + " disconnected.");
+                console.log(
+                    `Node ${remoteAddress}:${remotePort} disconnected.`
+                );
             });
             c.on("data", (chunk) => {
                 buffer += chunk.toString();
@@ -155,21 +164,13 @@ class NodeServer {
                         return;
                     }
 
-                    const peers: Array<Peer> = parsedMessage.payload.peers;
-                    peers.forEach((peer: Peer) => {
-                        if (
-                            peer.id != this.node.uid &&
-                            (peer.ip != this.node.ip ||
-                                peer.port != this.node.port)
-                        ) {
-                            const socket = this.connectToPeer(
-                                peer.ip,
-                                peer.port
-                            );
-                            peer.socket = socket;
-                            this.node.peerList.push(peer);
-                        }
-                    });
+                    let peers: Array<Peer> = parsedMessage.payload.peers;
+                    peers = peers.filter(
+                        (peer) =>
+                            !this.node.peerList.some(
+                                (p) => p.ip === peer.ip && p.port === peer.port
+                            )
+                    );
 
                     // send message
                     const helloMessage: Message = {

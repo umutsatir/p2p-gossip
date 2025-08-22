@@ -22,9 +22,17 @@ var NodeServer = /** @class */ (function () {
         var _this = this;
         return net.createServer(function (c) {
             var buffer = "";
-            console.log("Node " + _this.node.ip + " connected.");
+            // Normalize IPv6-mapped IPv4 addresses and use correct remote port
+            var remoteAddress = c.remoteAddress || "unknown";
+            if (remoteAddress.startsWith("::ffff:")) {
+                remoteAddress = remoteAddress.replace("::ffff:", "");
+            }
+            var remotePort = c.remotePort
+                ? c.remotePort.toString()
+                : "unknown";
+            console.log("New node ".concat(remoteAddress, ":").concat(remotePort, " connected."));
             c.on("end", function () {
-                console.log("Node " + _this.node.ip + " disconnected.");
+                console.log("Node ".concat(remoteAddress, ":").concat(remotePort, " disconnected."));
             });
             c.on("data", function (chunk) {
                 buffer += chunk.toString();
@@ -114,14 +122,8 @@ var NodeServer = /** @class */ (function () {
                         return;
                     }
                     var peers = parsedMessage.payload.peers;
-                    peers.forEach(function (peer) {
-                        if (peer.id != _this.node.uid &&
-                            (peer.ip != _this.node.ip ||
-                                peer.port != _this.node.port)) {
-                            var socket_1 = _this.connectToPeer(peer.ip, peer.port);
-                            peer.socket = socket_1;
-                            _this.node.peerList.push(peer);
-                        }
+                    peers = peers.filter(function (peer) {
+                        return !_this.node.peerList.some(function (p) { return p.ip === peer.ip && p.port === peer.port; });
                     });
                     // send message
                     var helloMessage = {

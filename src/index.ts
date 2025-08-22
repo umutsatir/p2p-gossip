@@ -8,7 +8,6 @@ function main() {
         process.exit(1);
     }
 
-    console.log(args);
     const portArg = args[0];
     const isBootstrap = args[1] && args[1] == "bootstrap" ? true : false;
 
@@ -21,7 +20,7 @@ function main() {
     let peerList: Array<Peer> = [];
 
     // creating peer list with bootstrap node(s)
-    const bootstrapIP: string = "127.0.0.1"; // ! only get local IP for testing in the same computer
+    const bootstrapIP: string = getLocalIPAddress(); // ! only get local IP for testing in the same computer
     const bootstrapPort: number = 5100;
 
     if (!isBootstrap) {

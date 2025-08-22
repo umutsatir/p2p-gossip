@@ -8,7 +8,6 @@ function main() {
         console.error("Port should be given as a command-line argument.");
         process.exit(1);
     }
-    console.log(args);
     var portArg = args[0];
     var isBootstrap = args[1] && args[1] == "bootstrap" ? true : false;
     var port = parseInt(portArg, 10);
